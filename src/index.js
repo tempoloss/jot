@@ -34,6 +34,10 @@ export default {
       return notFound();
     }
 
+    // Only an authenticated delivery is allowed to define the cache origin, so a
+    // prober cannot point stranger-dedup keys at a zone we do not own.
+    cacheOrigin ??= new URL(request.url).origin;
+
     let update;
     try {
       update = await request.json();
@@ -86,22 +90,107 @@ export async function dispatch(env, update) {
 }
 
 /**
+ * A stranger is interesting exactly once.
+ *
+ * Repeat /start is noise by definition, and it is also the cheapest way to burn
+ * the daily quota and fill the owner's phone: nine deliveries inside one minute
+ * from a single account is what prompted this.
+ *
+ * Two layers, because neither is complete alone:
+ *   - `greeted`, a module-scope Map, is per-isolate and stops a rapid burst with
+ *     no I/O at all. That is the case actually observed, since consecutive
+ *     deliveries land in the same isolate.
+ *   - the Cache API survives isolate recycling within a colo.
+ *
+ * Neither is globally exact, and KV would not be either — its reads are
+ * eventually consistent, so a nine-message burst would slip through it too.
+ * Exactness would take a Durable Object, which is far more machinery than "do
+ * not buzz my phone twice" is worth.
+ */
+const greeted = new Map();
+const GREET_TTL_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Per-user dedup does nothing against a raid by many distinct accounts, so the
+ * outbound side is also capped. Crossing the cap silences the bot rather than
+ * degrading it: an outsider can then still spend Worker requests, which is
+ * unavoidable because Telegram delivers regardless, but not Telegram API calls.
+ */
+const ALERTS_PER_HOUR = 20;
+let windowStart = 0;
+let windowCount = 0;
+
+/**
+ * Cache API keys have to sit inside the zone or the write is silently dropped,
+ * so the origin is taken from a real request rather than hardcoded. Under local
+ * polling there is no request, and the Map is the only layer.
+ */
+let cacheOrigin = null;
+
+async function firstContact(id) {
+  const now = Date.now();
+
+  const seenAt = greeted.get(id);
+  if (seenAt !== undefined && now - seenAt < GREET_TTL_MS) return false;
+  greeted.set(id, now);
+
+  // A long-lived isolate would otherwise hold one entry per visitor forever.
+  if (greeted.size > 500) {
+    for (const [key, at] of greeted) if (now - at > GREET_TTL_MS) greeted.delete(key);
+  }
+
+  if (!cacheOrigin || typeof caches === "undefined") return true;
+  const key = new Request(`${cacheOrigin}/__greeted/${id}`);
+  if (await caches.default.match(key)) return false;
+  await caches.default.put(key, new Response("1", {
+    headers: { "cache-control": `max-age=${Math.floor(GREET_TTL_MS / 1000)}` },
+  }));
+  return true;
+}
+
+/** Returns how many alerts have been spent this hour, counting this one. */
+function spendAlert() {
+  const now = Date.now();
+  if (now - windowStart > 60 * 60 * 1000) {
+    windowStart = now;
+    windowCount = 0;
+  }
+  return ++windowCount;
+}
+
+/**
  * Everyone who is not the owner.
  *
  * Silent by default: with no STRANGER_PHOTO configured the bot does not confirm
  * it exists, which is the stronger position. Setting the photo trades that away
- * for personality — a deliberate choice, since nobody is attacking a personal
- * note bot and the realistic visitor is a curious friend.
+ * for personality.
  *
- * It answers only /start, i.e. a first contact. Replying to every message would
- * double the request cost of anyone spamming the bot, and the free Workers quota
- * is the only thing an outsider can actually exhaust here.
+ * It answers only /start, and only the first one per account per day.
  */
 async function greetStranger(env, chatId, msg) {
   if (!env.STRANGER_PHOTO || !chatId) return;
   if (msg?.text !== "/start") return;
 
-  await send(env, chatId, { photo: env.STRANGER_PHOTO });
+  const from = msg.from ?? {};
+  const id = from.id ?? chatId;
+
+  // A returning visitor costs zero Telegram calls. This is the whole fix.
+  if (!(await firstContact(id))) return;
+
+  const spent = spendAlert();
+  if (spent > ALERTS_PER_HOUR) return;
+
+  // The alert is the half that matters, so a failed photo must not take it down
+  // with it. Measured against a chat that does not exist: sendPhoto threw, the
+  // throw propagated, and the owner was never told anyone had knocked. A stranger
+  // who blocks the bot produces exactly that, and silence is the wrong answer to
+  // the one outside event this bot ever sees.
+  const delivered = await send(env, chatId, { photo: env.STRANGER_PHOTO })
+    .then(() => true)
+    .catch((err) => {
+      console.error(`greet photo failed: ${err.message}`);
+      return false;
+    });
 
   // Tell the owner who knocked. A stranger reaching the bot is the only outside
   // event it ever sees, so it is worth surfacing rather than logging where it
@@ -115,15 +204,18 @@ async function greetStranger(env, chatId, msg) {
   //
   // With no username there is no reachable link at all. The id is rendered as
   // code so it can be copied, and nothing pretends to be tappable.
-  const from = msg.from ?? {};
-  const id = from.id ?? chatId;
   const name = esc([from.first_name, from.last_name].filter(Boolean).join(" "));
   const who = from.username
     ? `<a href="https://t.me/${esc(from.username)}">@${esc(from.username)}</a>`
     : (name || "без имени");
+  const tail = spent === ALERTS_PER_HOUR
+    ? `\n<i>— это ${ALERTS_PER_HOUR}-й за час, дальше молчу до конца часа</i>`
+    : "";
   await send(env, env.OWNER_CHAT_ID,
     `👀 <b>${who}</b> постучался в бота\n` +
-    `<i>id</i> <code>${id}</code>${from.username ? "" : " <i>— юзернейма нет, ссылку не сделать</i>"}`);
+    `<i>id</i> <code>${id}</code>` +
+    `${from.username ? "" : " <i>— юзернейма нет, ссылку не сделать</i>"}` +
+    `${delivered ? "" : "\n<i>— картинку не доставил, он закрыт для бота</i>"}${tail}`);
 }
 
 /**
