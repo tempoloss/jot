@@ -107,17 +107,23 @@ async function greetStranger(env, chatId, msg) {
   // event it ever sees, so it is worth surfacing rather than logging where it
   // will not be read.
   //
-  // The name is wrapped in a tg://user link, which opens the profile on tap.
-  // That is the part a bare id cannot do, and it works for accounts with no
-  // username at all — the case where an id is otherwise a dead end.
+  // Linking by t.me/<username>, NOT by tg://user?id=. Measured: a tg://user link
+  // to a stranger is silently dropped — the reply came back with only italic and
+  // code entities and no text_mention — while the same link to a chat the bot
+  // already knows does resolve. Telegram will not turn an arbitrary id into a
+  // mention, so t.me is the form that always works.
+  //
+  // With no username there is no reachable link at all. The id is rendered as
+  // code so it can be copied, and nothing pretends to be tappable.
   const from = msg.from ?? {};
   const id = from.id ?? chatId;
-  const label = from.username
-    ? `@${esc(from.username)}`
-    : esc([from.first_name, from.last_name].filter(Boolean).join(" ")) || `id ${id}`;
+  const name = esc([from.first_name, from.last_name].filter(Boolean).join(" "));
+  const who = from.username
+    ? `<a href="https://t.me/${esc(from.username)}">@${esc(from.username)}</a>`
+    : (name || "без имени");
   await send(env, env.OWNER_CHAT_ID,
-    `👀 <a href="tg://user?id=${id}">${label}</a> постучался в бота\n` +
-    `<i>id <code>${id}</code> — ответил ему картинкой</i>`);
+    `👀 <b>${who}</b> постучался в бота\n` +
+    `<i>id</i> <code>${id}</code>${from.username ? "" : " <i>— юзернейма нет, ссылку не сделать</i>"}`);
 }
 
 /**
