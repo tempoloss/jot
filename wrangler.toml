@@ -2,6 +2,13 @@ name = "jot"
 main = "src/index.js"
 compatibility_date = "2026-08-01"
 
+# Stated rather than defaulted. workers.dev gives the single URL the Telegram
+# webhook points at; preview URLs would publish an extra address per version, and
+# every additional public surface is one more door on a bot that only ever needs
+# one. The secret_token check defends them, but fewer doors is better than more.
+workers_dev = true
+preview_urls = false
+
 # This file is committed, so it holds nothing personal. OWNER_CHAT_ID is not
 # secret in any real sense, but it is a personal identifier and does not belong
 # in a public repository, so it goes in with the secrets.
