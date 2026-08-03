@@ -29,3 +29,19 @@ preview_urls = false
 # Optional. A Telegram file_id sent to anyone who is not the owner, on /start
 # only. Leave unset and the bot stays silent to strangers.
 #   wrangler secret put STRANGER_PHOTO
+
+# Optional. A classic PAT with the `notifications` scope, nothing else. GitHub's
+# notification endpoints reject fine-grained tokens outright, which is why this
+# cannot reuse GH_PAT. Leave unset and the schedule does nothing.
+#   wrangler secret put GH_NOTIFY_TOKEN
+
+# Whose own comments to ignore. Not secret: it is the public account name, and
+# the alternative is an extra API call on every poll to ask GitHub who we are.
+[vars]
+GH_LOGIN = "tempoloss"
+
+# 59 runs an hour, not 60. GitHub's X-Poll-Interval is 60 seconds and cron fires
+# on the minute rather than exactly every 60 seconds, so sitting on the limit
+# would cross it on jitter alone. The skipped minute is the margin.
+[triggers]
+crons = ["0-58 * * * *"]

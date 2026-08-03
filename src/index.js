@@ -15,6 +15,8 @@
 
 import { parse, HELP } from "./commands.js";
 import * as gh from "./github.js";
+import * as notify from "./notify.js";
+import { esc } from "./html.js";
 
 const PHOTO_MARK = "tg-photo";
 
@@ -50,7 +52,52 @@ export default {
     // that was already created before the error.
     return ok();
   },
+
+  async scheduled(controller, env, ctx) {
+    await pollGithub(env).catch((err) => console.error(`poll failed: ${err.message}`));
+  },
 };
+
+/**
+ * Etag and last-poll time live at module scope on purpose.
+ *
+ * Both are opportunistic. When the isolate is reused the etag turns an unchanged
+ * poll into a 304 and the floor absorbs cron jitter, since a trigger scheduled
+ * every minute is not spaced exactly sixty seconds apart and GitHub asks for one
+ * poll a minute. When the isolate is fresh both are empty and the poll simply
+ * happens, which costs one request out of five thousand an hour. Neither is
+ * load-bearing, so neither needs storage.
+ */
+let notifyEtag = null;
+let lastPollAt = 0;
+
+async function pollGithub(env) {
+  if (!env.GH_NOTIFY_TOKEN || !env.OWNER_CHAT_ID) return;
+
+  const now = Date.now();
+  if (now - lastPollAt < notify.POLL_FLOOR_MS) return;
+  lastPollAt = now;
+
+  const { threads, etag } = await notify.fetchThreads(env, notifyEtag);
+  notifyEtag = etag;
+
+  // Oldest first, so a burst of replies arrives in the order it was written.
+  for (const thread of threads.filter(notify.isWanted).reverse()) {
+    const comment = await notify.fetchComment(env, thread);
+
+    // His own comment is what produced the notification. Mark it read anyway,
+    // otherwise it is re-examined on every poll for as long as it stays unread.
+    if (notify.isOwnEcho(comment, env.GH_LOGIN)) {
+      await notify.markRead(env, thread.id).catch(() => {});
+      continue;
+    }
+
+    // Deliver, then mark. The other order loses the notification outright if
+    // Telegram fails, while this order costs at most a duplicate.
+    await send(env, env.OWNER_CHAT_ID, notify.format(thread, comment, esc, env.GH_LOGIN));
+    await notify.markRead(env, thread.id);
+  }
+}
 
 /** Shared by the webhook and by local polling. */
 export async function dispatch(env, update) {
@@ -340,11 +387,6 @@ export async function send(env, chatId, reply) {
     body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error(`telegram ${method} ${res.status}: ${(await res.text()).slice(0, 160)}`);
-}
-
-/** HTML parse mode needs exactly these three escaped, per Telegram's docs. */
-function esc(s) {
-  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 function ok() {
