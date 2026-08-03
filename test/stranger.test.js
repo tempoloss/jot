@@ -21,8 +21,24 @@ function record() {
   return calls;
 }
 
-const start = (id, username) => ({
-  message: { chat: { id }, from: { id, username }, text: "/start" },
+/**
+ * Test usernames must be impossible, not merely unlikely.
+ *
+ * A placeholder handle lands in a live namespace. "burst" was invented for a
+ * throwaway probe against the deployed bot, the alert rendered t.me/burst, and
+ * that is a real person's account. "durov" was used the same way an hour
+ * earlier. Nothing was ever sent to either of them, but the owner was handed a
+ * stranger's profile under a fabricated label.
+ *
+ * Telegram usernames are 5-32 characters of letters, digits and underscores and
+ * must begin with a letter, so a hyphen makes a handle unregistrable. Every name
+ * below therefore resolves to nobody by construction rather than by luck. Do not
+ * tidy these into readable words.
+ */
+const nobody = (tag) => `nobody-${tag}`;
+
+const start = (id, tag) => ({
+  message: { chat: { id }, from: { id, username: nobody(tag) }, text: "/start" },
 });
 
 test("a stranger is greeted once, no matter how many times they knock", async () => {
@@ -42,8 +58,8 @@ test("dedup is per account, so a second visitor still gets through", async () =>
 
   assert.equal(calls.filter((c) => c.method === "sendPhoto").length, 2);
   const alerts = calls.filter((c) => c.method === "sendMessage");
-  assert.match(alerts[0].body.text, /@first/);
-  assert.match(alerts[1].body.text, /@second/);
+  assert.match(alerts[0].body.text, /@nobody-first\b/);
+  assert.match(alerts[1].body.text, /@nobody-second\b/);
 });
 
 test("a repeat visitor costs zero Telegram calls, not just zero alerts", async () => {
@@ -71,7 +87,7 @@ test("with no STRANGER_PHOTO the bot does not confirm it exists", async () => {
 test("an account with no username gets no link and the message says why", async () => {
   const calls = record();
   await dispatch(env, {
-    message: { chat: { id: 9007 }, from: { id: 9007, first_name: "Alef" }, text: "/start" },
+    message: { chat: { id: 9007 }, from: { id: 9007, first_name: "Ноунейм" }, text: "/start" },
   });
 
   const alert = calls.find((c) => c.method === "sendMessage").body.text;
@@ -108,7 +124,7 @@ test("a failed photo still tells the owner someone knocked", async () => {
 
   const alert = calls.find((c) => c.method === "sendMessage");
   assert.ok(alert, "the owner must be told even though the photo failed");
-  assert.match(alert.body.text, /@blocked/);
+  assert.match(alert.body.text, /@nobody-blocked\b/);
   assert.match(alert.body.text, /картинку не доставил/);
 });
 
