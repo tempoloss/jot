@@ -1,0 +1,4 @@
+# Canonicalise author identities to one person for git log, shortlog and blame.
+# Placeholder and misconfigured identities below are all tempoloss.
+tempoloss <304178922+tempoloss@users.noreply.github.com> <an8kk.sa@gmail.com>
+tempoloss <304178922+tempoloss@users.noreply.github.com> <tempoloss@users.noreply.github.com>
