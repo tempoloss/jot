@@ -64,10 +64,24 @@ async function preflight() {
 
   const api = `https://api.telegram.org/bot${env.TELEGRAM_TOKEN}`;
 
-  // A registered webhook and getUpdates are mutually exclusive, so clear it.
-  // Keeps local.js runnable even after the Worker has been deployed.
+  // A registered webhook and getUpdates are mutually exclusive, so polling has
+  // to clear it. That silently kills a deployed Worker until the webhook is
+  // re-registered, so say so loudly and print the exact command to undo it —
+  // a break the operator can see is worth more than one they discover later.
+  const info = await fetch(`${api}/getWebhookInfo`);
+  if (!info.ok) return `Telegram отклонил токен: ${info.status}. Проверь TELEGRAM_TOKEN.`;
+  const hook = (await info.json()).result?.url;
+  if (hook) {
+    // The restore command is printed with the token redacted: console output
+    // lands in scrollback and logs, and a bot token there is a leak.
+    console.warn(
+      `\n!! снимаю вебхук ${hook}\n` +
+      `   задеплоенный бот перестанет отвечать, пока не вернёшь его:\n` +
+      `   curl "https://api.telegram.org/bot<TELEGRAM_TOKEN>/setWebhook" \\\n` +
+      `        -d "url=${hook}" -d "secret_token=<WEBHOOK_SECRET>"\n`);
+  }
   const del = await fetch(`${api}/deleteWebhook`);
-  if (!del.ok) return `Telegram отклонил токен: ${del.status}. Проверь TELEGRAM_TOKEN.`;
+  if (!del.ok) return `Telegram отклонил токен: ${del.status}`;
 
   const probe = await fetch(`${GH}/repos/${env.TASK_REPO}`, {
     headers: { authorization: `Bearer ${env.GH_PAT}`, "user-agent": "jot" },
