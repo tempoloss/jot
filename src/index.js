@@ -20,14 +20,18 @@ const PHOTO_MARK = "tg-photo";
 
 export default {
   async fetch(request, env) {
-    if (request.method !== "POST") return new Response("jot", { status: 200 });
+    // Anything that is not an authentic Telegram delivery gets the same 404 a
+    // nonexistent route would give. A 403 confirms something is listening here;
+    // 404 leaves a prober unable to tell this hostname from an empty one.
+    if (request.method !== "POST") return notFound();
 
     // Telegram sends this header when the webhook is registered with
-    // secret_token. Without the check, anyone who learns the Worker URL can
-    // drive the bot, and Worker URLs are guessable.
+    // secret_token. Without the check, anyone who learns the URL can drive the
+    // bot, and hostnames are discoverable.
     if (env.WEBHOOK_SECRET &&
-        request.headers.get("x-telegram-bot-api-secret-token") !== env.WEBHOOK_SECRET) {
-      return new Response("forbidden", { status: 403 });
+        !timingSafeEqual(request.headers.get("x-telegram-bot-api-secret-token"),
+                         env.WEBHOOK_SECRET)) {
+      return notFound();
     }
 
     let update;
@@ -102,11 +106,18 @@ async function greetStranger(env, chatId, msg) {
   // Tell the owner who knocked. A stranger reaching the bot is the only outside
   // event it ever sees, so it is worth surfacing rather than logging where it
   // will not be read.
+  //
+  // The name is wrapped in a tg://user link, which opens the profile on tap.
+  // That is the part a bare id cannot do, and it works for accounts with no
+  // username at all — the case where an id is otherwise a dead end.
   const from = msg.from ?? {};
-  const who = from.username ? `@${esc(from.username)}`
-                            : esc([from.first_name, from.last_name].filter(Boolean).join(" ") || "без имени");
+  const id = from.id ?? chatId;
+  const label = from.username
+    ? `@${esc(from.username)}`
+    : esc([from.first_name, from.last_name].filter(Boolean).join(" ")) || `id ${id}`;
   await send(env, env.OWNER_CHAT_ID,
-    `👀 <b>${who}</b> постучался в бота\n<i>id ${from.id ?? chatId} — ответил ему картинкой</i>`);
+    `👀 <a href="tg://user?id=${id}">${label}</a> постучался в бота\n` +
+    `<i>id <code>${id}</code> — ответил ему картинкой</i>`);
 }
 
 /**
@@ -240,4 +251,24 @@ function esc(s) {
 
 function ok() {
   return new Response("ok", { status: 200 });
+}
+
+/** Indistinguishable from a hostname serving nothing. */
+function notFound() {
+  return new Response("not found", { status: 404 });
+}
+
+/**
+ * Constant-time string compare.
+ *
+ * `!==` returns as soon as two bytes differ, so how long the answer takes leaks
+ * how much of the secret was guessed. Remotely that signal is buried under
+ * network jitter and is not a practical attack here — but the fix is four lines,
+ * and a comparison that leaks nothing costs nothing to keep.
+ */
+function timingSafeEqual(a, b) {
+  if (typeof a !== "string" || typeof b !== "string" || a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
 }
