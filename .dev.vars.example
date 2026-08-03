@@ -1,0 +1,18 @@
+# Copy to .dev.vars and fill in. .dev.vars is gitignored.
+# The same file is read by `wrangler dev`, so one format covers both modes.
+
+# From @BotFather
+TELEGRAM_TOKEN=
+
+# Fine-grained PAT, Issues: Read and write, scoped to the task repo only.
+# Note: Repository access and Permissions are two separate sections, and the
+# Update token button at the bottom is easy to miss.
+GH_PAT=
+
+# A PRIVATE repository, separate from the one holding this code.
+# Point this at a public repo and every personal note becomes public.
+TASK_REPO=you/tasks
+
+# Your Telegram user id. Message the bot, then read result[0].message.chat.id
+# from https://api.telegram.org/bot<TOKEN>/getUpdates
+OWNER_CHAT_ID=
