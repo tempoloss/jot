@@ -2,11 +2,18 @@ name = "jot"
 main = "src/index.js"
 compatibility_date = "2026-08-01"
 
-# Stated rather than defaulted. workers.dev gives the single URL the Telegram
-# webhook points at; preview URLs would publish an extra address per version, and
-# every additional public surface is one more door on a bot that only ever needs
-# one. The secret_token check defends them, but fewer doors is better than more.
-workers_dev = true
+# The workers.dev hostname is derived from the account, so it publishes the
+# account's email local-part in a URL anyone can see. A custom domain hides that
+# and is the only address the webhook needs.
+routes = [
+  { pattern = "jot.an8kk.dev", custom_domain = true }
+]
+
+# Stated rather than defaulted. Preview URLs would publish an extra address per
+# version, and every additional public surface is one more door on a bot that
+# only ever needs one. The secret_token check defends them, but fewer doors is
+# better than more.
+workers_dev = false
 preview_urls = false
 
 # This file is committed, so it holds nothing personal. OWNER_CHAT_ID is not
@@ -18,3 +25,7 @@ preview_urls = false
 #   wrangler secret put WEBHOOK_SECRET
 #   wrangler secret put OWNER_CHAT_ID
 #   wrangler secret put TASK_REPO
+#
+# Optional. A Telegram file_id sent to anyone who is not the owner, on /start
+# only. Leave unset and the bot stays silent to strangers.
+#   wrangler secret put STRANGER_PHOTO

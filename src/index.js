@@ -49,9 +49,12 @@ export async function dispatch(env, update) {
   const msg = update.message ?? update.edited_message;
   const chatId = msg?.chat?.id;
 
-  // Single-user bot. Anyone else gets silence rather than a refusal, so the bot
-  // does not confirm it exists.
-  if (!chatId || String(chatId) !== String(env.OWNER_CHAT_ID)) return;
+  // Single-user bot. Everyone else is handled by greetStranger, which is silent
+  // unless STRANGER_PHOTO is configured.
+  if (!chatId || String(chatId) !== String(env.OWNER_CHAT_ID)) {
+    await greetStranger(env, chatId, msg).catch(() => {});
+    return;
+  }
 
   try {
     // A photo arrives as a `photo` array with an optional caption, not as text.
@@ -59,7 +62,14 @@ export async function dispatch(env, update) {
       await handlePhoto(env, chatId, msg);
       return;
     }
-    const reply = await handle(env, parse(msg.text ?? ""));
+    // Voice, stickers, documents and the rest carry no text. Without this the
+    // owner sends a voice note and gets nothing back, which is indistinguishable
+    // from the bot being down.
+    if (msg.text === undefined) {
+      await send(env, chatId, "🤷 умею только текст и фото");
+      return;
+    }
+    const reply = await handle(env, parse(msg.text));
     if (reply) await send(env, chatId, reply);
   } catch (err) {
     // Log AND reply. Replying only sent failures to Telegram, where they were
@@ -68,6 +78,24 @@ export async function dispatch(env, update) {
     console.error(`handle failed: ${err.message}`);
     await send(env, chatId, `⚠️ ${esc(err.message)}`).catch(() => {});
   }
+}
+
+/**
+ * Everyone who is not the owner.
+ *
+ * Silent by default: with no STRANGER_PHOTO configured the bot does not confirm
+ * it exists, which is the stronger position. Setting the photo trades that away
+ * for personality — a deliberate choice, since nobody is attacking a personal
+ * note bot and the realistic visitor is a curious friend.
+ *
+ * It answers only /start, i.e. a first contact. Replying to every message would
+ * double the request cost of anyone spamming the bot, and the free Workers quota
+ * is the only thing an outsider can actually exhaust here.
+ */
+async function greetStranger(env, chatId, msg) {
+  if (!env.STRANGER_PHOTO || !chatId) return;
+  if (msg?.text !== "/start") return;
+  await send(env, chatId, { photo: env.STRANGER_PHOTO });
 }
 
 /**
