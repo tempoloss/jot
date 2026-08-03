@@ -1,0 +1,13 @@
+name = "jot"
+main = "src/index.js"
+compatibility_date = "2026-08-01"
+
+# This file is committed, so it holds nothing personal. OWNER_CHAT_ID is not
+# secret in any real sense, but it is a personal identifier and does not belong
+# in a public repository, so it goes in with the secrets.
+#
+#   wrangler secret put TELEGRAM_TOKEN
+#   wrangler secret put GH_PAT
+#   wrangler secret put WEBHOOK_SECRET
+#   wrangler secret put OWNER_CHAT_ID
+#   wrangler secret put TASK_REPO
