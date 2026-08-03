@@ -95,3 +95,18 @@ test("multiline text is kept whole", () => {
 test("text that looks like HTML is captured verbatim - escaping is the sink's job", () => {
   assert.equal(parse("a < b & c > d").title, "a < b & c > d");
 });
+
+test("/rmpic takes a number", () => {
+  assert.deepEqual(parse("/rmpic 5"), { kind: "rmpic", number: 5 });
+  assert.deepEqual(parse("/rmpic #5"), { kind: "rmpic", number: 5 });
+});
+
+test("/rmpic without a number is an error", () => {
+  assert.equal(parse("/rmpic").kind, "error");
+  assert.equal(parse("/rmpic abc").kind, "error");
+});
+
+test("/rmpic and /pic are distinct commands", () => {
+  assert.equal(parse("/pic 5").kind, "pic");
+  assert.equal(parse("/rmpic 5").kind, "rmpic");
+});

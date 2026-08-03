@@ -60,6 +60,13 @@ export function parse(text) {
         : { kind: "pic", number: n };
     }
 
+    case "rmpic": {
+      const n = num(rest);
+      return n === null
+        ? { kind: "error", message: "Нужен номер: /rmpic 5" }
+        : { kind: "rmpic", number: n };
+    }
+
     case "c": {
       const sp = rest.indexOf(" ");
       if (sp < 0) return { kind: "error", message: "Нужен номер и текст: /c 3 текст" };
@@ -92,6 +99,7 @@ export const HELP = [
   "",
   "📝 <code>любой текст</code> — заметка",
   "📷 <code>фото</code> — заметка с картинкой, вернуть: <code>/pic 5</code>",
+  "🗑 <code>/rmpic 5</code> — убрать картинку из заметки",
   "",
   "⚡️ <code>/task 5</code> — повысить заметку до задачи",
   "⚡️ <code>/t текст</code> — сразу задача",

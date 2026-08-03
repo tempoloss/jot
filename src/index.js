@@ -52,7 +52,8 @@ export async function dispatch(env, update) {
   // Single-user bot. Everyone else is handled by greetStranger, which is silent
   // unless STRANGER_PHOTO is configured.
   if (!chatId || String(chatId) !== String(env.OWNER_CHAT_ID)) {
-    await greetStranger(env, chatId, msg).catch(() => {});
+    await greetStranger(env, chatId, msg)
+      .catch((err) => console.error(`greet failed: ${err.message}`));
     return;
   }
 
@@ -95,7 +96,17 @@ export async function dispatch(env, update) {
 async function greetStranger(env, chatId, msg) {
   if (!env.STRANGER_PHOTO || !chatId) return;
   if (msg?.text !== "/start") return;
+
   await send(env, chatId, { photo: env.STRANGER_PHOTO });
+
+  // Tell the owner who knocked. A stranger reaching the bot is the only outside
+  // event it ever sees, so it is worth surfacing rather than logging where it
+  // will not be read.
+  const from = msg.from ?? {};
+  const who = from.username ? `@${esc(from.username)}`
+                            : esc([from.first_name, from.last_name].filter(Boolean).join(" ") || "без имени");
+  await send(env, env.OWNER_CHAT_ID,
+    `👀 <b>${who}</b> постучался в бота\n<i>id ${from.id ?? chatId} — ответил ему картинкой</i>`);
 }
 
 /**
@@ -177,6 +188,18 @@ export async function handle(env, cmd) {
       const found = (issue.body ?? "").match(new RegExp(`<!-- ${PHOTO_MARK}: (\\S+) -->`));
       if (!found) return `🤷 у <b>#${cmd.number}</b> нет фото`;
       return { photo: found[1], caption: `📷 <b>#${issue.number}</b> ${esc(issue.title)}` };
+    }
+
+    case "rmpic": {
+      const issue = await gh.get(env, cmd.number);
+      const body = issue.body ?? "";
+      const mark = new RegExp(`\\n*<!-- ${PHOTO_MARK}: \\S+ -->`, "g");
+      if (!mark.test(body)) return `🤷 у <b>#${cmd.number}</b> и так нет фото`;
+      // Only the reference is dropped. Telegram keeps the file itself and the
+      // Bot API cannot delete it, so this un-links rather than erases — worth
+      // saying rather than implying the image is gone.
+      await gh.setBody(env, cmd.number, body.replace(mark, "").trim());
+      return `🗑 картинка снята с <b>#${cmd.number}</b>\n<i>сам файл остаётся у telegram — бот его удалить не может</i>`;
     }
 
     default:

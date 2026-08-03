@@ -80,3 +80,11 @@ export async function comment(env, number, body) {
     body: JSON.stringify({ body }),
   });
 }
+
+/** Replace an issue body. Used to strip a photo reference out of a note. */
+export async function setBody(env, number, body) {
+  return call(env, `/issues/${number}`, {
+    method: "PATCH",
+    body: JSON.stringify({ body }),
+  });
+}
