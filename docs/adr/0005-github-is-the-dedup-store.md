@@ -1,8 +1,10 @@
-# 0005 — GitHub is the dedup store for notifications
+# 5. GitHub's read flag is the dedup store for notifications
 
-## Status
+Status: accepted
 
-Accepted.
+Decided in `f9993a7` (2026-08-04), pinned by the etag and failed-poll tests in
+`test/notify.test.js`. The same rule was already load-bearing for stranger greetings
+in `92beb2b`.
 
 ## Context
 

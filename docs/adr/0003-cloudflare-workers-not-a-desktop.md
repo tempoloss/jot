@@ -1,8 +1,9 @@
-# 0003 — Cloudflare Workers, not a desktop
+# 3. The bot runs on Workers, not on a desktop that reboots
 
-## Status
+Status: accepted
 
-Accepted.
+Decided in `116a219` (2026-08-03). Written down as an ADR on 2026-08-03, when the
+decisions that until then lived only in commit messages were filed here.
 
 ## Context
 
@@ -16,8 +17,8 @@ Run as a Telegram webhook on Cloudflare Workers. Always on, free, and it never
 reboots.
 
 Leaving a desktop running was offered and rejected on **reliability** first: a
-desktop reboots for OS updates and IT, and the bot would die silently —
-discovered days later, when a note was needed. That is the exact silent-failure
+desktop reboots for OS updates and IT, and the bot would die silently, discovered
+days later when a note was needed. That is the exact silent-failure
 class the design otherwise avoids. It also cannot be restarted from away, which
 defeats the purpose.
 
@@ -31,5 +32,5 @@ token in every watched repo, the second is a second store for no benefit.
   host: it dies on reboot and dies silently, which is the failure Workers avoid.
   It imports the same `dispatch` the Worker uses, so the two cannot drift.
 - The webhook is guarded twice: a `secret_token` header rejects forged requests,
-  and an owner-chat-id check ignores everyone else — silently, so the bot does
-  not confirm it exists.
+  and an owner-chat-id check ignores everyone else. Silently, so the bot does not
+  confirm it exists.

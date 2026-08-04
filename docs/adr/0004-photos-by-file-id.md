@@ -1,8 +1,10 @@
-# 0004 — Photos by Telegram file_id
+# 4. Photos are stored as a Telegram file_id, not as bytes
 
-## Status
+Status: accepted
 
-Accepted.
+Decided in `116a219` (2026-08-03), with `/rmpic` added in `7fa4821`. Written down as
+an ADR on 2026-08-03, when the decisions that until then lived only in commit
+messages were filed here.
 
 ## Context
 
@@ -21,7 +23,7 @@ Rejected alternatives:
 - **Put the file URL in the issue.** Telegram's file URL embeds the bot token,
   so this writes the token into the issue body.
 - **Commit the image to the repo.** Needs `Contents: write` on the PAT, and the
-  image only renders if the repo is public — but the task repo is deliberately
+  image only renders if the repo is public, and the task repo is deliberately
   private so notes stay private.
 
 ## Consequences
@@ -31,4 +33,4 @@ Rejected alternatives:
   issue shows the caption and a `📷` marker; the picture comes back through
   `/pic N` in Telegram, where it was captured.
 - If inline rendering is ever wanted, the path is `Contents: write` plus a
-  public repo — a deliberate change, not a default.
+  public repo. A deliberate change, not a default.
