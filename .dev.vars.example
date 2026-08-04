@@ -16,3 +16,17 @@ TASK_REPO=you/tasks
 # Your Telegram user id. Message the bot, then read result[0].message.chat.id
 # from https://api.telegram.org/bot<TOKEN>/getUpdates
 OWNER_CHAT_ID=
+
+# Optional. GitHub notifications forwarded to Telegram on a schedule.
+#
+# This one is a CLASSIC token with the `notifications` scope and nothing else.
+# GitHub's notification endpoints reject fine-grained tokens outright, so GH_PAT
+# above cannot be reused here however it is scoped. The scope grants the
+# notification list and nothing more: no repository read, no write.
+#
+# Leave empty and the schedule does nothing.
+GH_NOTIFY_TOKEN=
+
+# Your GitHub login. Used to drop notifications your own comments produced, and
+# to tell an actual @mention from a reply in a thread you were once tagged in.
+GH_LOGIN=
