@@ -67,6 +67,19 @@ export function parse(text) {
         : { kind: "rmpic", number: n };
     }
 
+    case "rm": {
+      // Deleting is the one irreversible act here. The store is GitHub Issues
+      // and there is no second copy [ADR 0002], so there is nothing to restore
+      // from. `/rm` also sits three characters from `/rmpic`, so a typo would
+      // destroy a note instead of unlinking a photo. Hence the bang: `/rm 5`
+      // shows what would go, `/rm 5!` actually does it.
+      const bang = rest.endsWith("!");
+      const n = num(bang ? rest.slice(0, -1) : rest);
+      return n === null
+        ? { kind: "error", message: "Нужен номер: /rm 5" }
+        : { kind: "rm", number: n, confirmed: bang };
+    }
+
     case "c": {
       const sp = rest.indexOf(" ");
       if (sp < 0) return { kind: "error", message: "Нужен номер и текст: /c 3 текст" };
@@ -108,4 +121,5 @@ export const HELP = [
   "🗒 <code>/notes</code> — последние заметки",
   "✅ <code>/done 3</code> — закрыть",
   "💬 <code>/c 3 текст</code> — комментарий",
+  "🗑 <code>/rm 5</code> — удалить заметку (спросит подтверждение)",
 ].join("\n");

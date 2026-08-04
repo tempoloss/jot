@@ -15,6 +15,7 @@ photo + caption        a note with an image, /pic 5 sends it back
 /notes                 recent notes
 /done 3                close it
 /c 3 text              comment
+/rm 5                  delete note 5, asks first; /rm 5! confirms
 ```
 
 It also pushes GitHub notifications the other way. When somebody replies to an
@@ -68,6 +69,7 @@ actionable. A note is a record and is never closed; a task can be. See
 | Cloudflare Workers, not a desktop | always on, never reboots, free | [ADR 0003](docs/adr/0003-cloudflare-workers-not-a-desktop.md) |
 | Photos by Telegram `file_id` | no extra scope, no token leak | [ADR 0004](docs/adr/0004-photos-by-file-id.md) |
 | GitHub's read flag as the dedup store | no second copy of the truth, exact dedup | [ADR 0005](docs/adr/0005-github-is-the-dedup-store.md) |
+| Deleting asks before it deletes | no second copy means no undo, and `/rm` is a typo away from `/rmpic` | [ADR 0006](docs/adr/0006-deleting-asks-because-there-is-no-undo.md) |
 
 ## Setup
 
@@ -77,7 +79,10 @@ public.
 
 **2. Fine-grained PAT** with **Issues: Read and write**, scoped to the store
 repo only. Repository access and Permissions are two separate sections, and the
-Update token button at the bottom is easy to miss.
+Update token button at the bottom is easy to miss. `/rm` needs admin or
+maintain on top of that, because issue deletion exists only as a GraphQL
+mutation — without it that one command fails with a clear reason and the rest
+keeps working. See [ADR 0006](docs/adr/0006-deleting-asks-because-there-is-no-undo.md).
 
 **3. Telegram chat id.** Message the bot first — `getUpdates` returns nothing
 until you do — then read `result[0].message.chat.id` from
@@ -149,7 +154,7 @@ two cannot drift.
 npm test
 ```
 
-45 tests, no network. Everything is split so the impure half is a thin shell
+49 tests, no network. Everything is split so the impure half is a thin shell
 around a pure one: `fetch` around `parse` for commands, and the GitHub call
 around `format` for notifications. The load-bearing tests are the ones that pin
 behaviour a plausible change would break: an unknown command is an error and

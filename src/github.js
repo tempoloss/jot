@@ -88,3 +88,33 @@ export async function setBody(env, number, body) {
     body: JSON.stringify({ body }),
   });
 }
+
+/**
+ * Delete an issue outright. The REST API has no endpoint for this at all —
+ * deletion exists only as a GraphQL mutation, and it needs admin or maintain
+ * on the repository rather than plain `Issues: write`. A fine-grained token
+ * scoped only to Issues will get a 403 here, so the failure is reported as a
+ * token problem instead of a mystery.
+ */
+export async function remove(env, number) {
+  const issue = await get(env, number);
+  const res = await fetch(`${API}/graphql`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${env.GH_PAT}`,
+      "content-type": "application/json",
+      "user-agent": "jot",
+    },
+    body: JSON.stringify({
+      query: "mutation($id:ID!){deleteIssue(input:{issueId:$id}){clientMutationId}}",
+      variables: { id: issue.node_id },
+    }),
+  });
+  const json = await res.json().catch(() => null);
+  // GraphQL answers 200 with an `errors` array, so status alone proves nothing.
+  const err = json?.errors?.[0]?.message;
+  if (!res.ok || err) {
+    throw new Error(`GitHub delete ${res.status}: ${err ?? "нет ответа"}`);
+  }
+  return issue;
+}

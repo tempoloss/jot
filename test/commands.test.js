@@ -110,3 +110,27 @@ test("/rmpic and /pic are distinct commands", () => {
   assert.equal(parse("/pic 5").kind, "pic");
   assert.equal(parse("/rmpic 5").kind, "rmpic");
 });
+
+test("/rm asks before it deletes", () => {
+  assert.deepEqual(parse("/rm 5"), { kind: "rm", number: 5, confirmed: false });
+  assert.deepEqual(parse("/rm #5"), { kind: "rm", number: 5, confirmed: false });
+});
+
+test("/rm with a bang is confirmed", () => {
+  assert.deepEqual(parse("/rm 5!"), { kind: "rm", number: 5, confirmed: true });
+  assert.deepEqual(parse("/rm #5!"), { kind: "rm", number: 5, confirmed: true });
+});
+
+test("/rm without a number is an error", () => {
+  assert.equal(parse("/rm").kind, "error");
+  assert.equal(parse("/rm abc").kind, "error");
+  assert.equal(parse("/rm !").kind, "error");
+});
+
+// The whole reason for the bang: these two are three characters apart and one
+// of them is irreversible.
+test("/rm and /rmpic stay distinct", () => {
+  assert.equal(parse("/rm 5").kind, "rm");
+  assert.equal(parse("/rmpic 5").kind, "rmpic");
+  assert.equal(parse("/rm 5").confirmed, false);
+});

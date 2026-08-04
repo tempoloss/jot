@@ -358,6 +358,17 @@ export async function handle(env, cmd) {
       return `🗑 картинка снята с <b>#${cmd.number}</b>\n<i>сам файл остаётся у telegram — бот его удалить не может</i>`;
     }
 
+    case "rm": {
+      const issue = await gh.get(env, cmd.number);
+      if (!cmd.confirmed) {
+        // Show what would go before it goes. Cheap, and the alternative is a
+        // typo of /rmpic destroying a note with nothing to restore from.
+        return `🗑 удалить <b>#${issue.number}</b> ${esc(issue.title)}?\n<i>это навсегда — подтверди:</i> <code>/rm ${issue.number}!</code>`;
+      }
+      await gh.remove(env, cmd.number);
+      return `🗑 <b>#${issue.number}</b> ${esc(issue.title)} — удалено`;
+    }
+
     default:
       return null;
   }
