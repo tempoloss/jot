@@ -130,10 +130,10 @@ Fine-grained tokens are rejected by these endpoints, so this cannot reuse
 `GH_PAT`. Set `GH_LOGIN` in `wrangler.toml` to your GitHub login. Leave the
 secret unset and the schedule does nothing.
 
-The first run is quiet: the poll takes unread threads only, so it starts from the
-next real event rather than replaying history. It marks each thread read after
-delivering, which means the bot clears your GitHub bell. That is the trade for
-needing no storage. See [ADR 0005](docs/adr/0005-github-is-the-dedup-store.md).
+The first run is quiet: the poll takes the whole unread GitHub inbox, so it
+starts from the next real event rather than replaying history. After delivery it
+marks each thread read, which means the bot clears your GitHub bell. That is the
+trade for needing no storage. See [ADR 0005](docs/adr/0005-github-is-the-dedup-store.md).
 
 ## Local testing
 

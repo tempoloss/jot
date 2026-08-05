@@ -1,8 +1,8 @@
 /**
  * GitHub notifications, pushed to Telegram.
  *
- * The problem this solves: maintainer replies were being missed for hours
- * because GitHub is a place you have to remember to visit. Telegram is not.
+ * GitHub is a place you have to remember to visit. Telegram is not. The bot
+ * mirrors the unread GitHub inbox instead of deciding which reasons count.
  *
  * Two decisions worth knowing before reading:
  *
@@ -25,20 +25,6 @@ const API = "https://api.github.com";
 /** GitHub asks for one poll a minute via X-Poll-Interval and means it. */
 export const POLL_FLOOR_MS = 60_000;
 
-/**
- * Reasons worth a phone buzz. `subscribed` is watch noise and `ci_activity` is
- * every workflow run, which during active work is a stream rather than a signal.
- */
-const WANTED = new Set([
-  "mention",
-  "team_mention",
-  "review_requested",
-  "assign",
-  "author",
-  "comment",
-  "approval_requested",
-]);
-
 function headers(token) {
   return {
     authorization: `Bearer ${token}`,
@@ -49,17 +35,16 @@ function headers(token) {
 }
 
 /**
- * Unread, participating-only threads.
+ * Unread threads from the whole GitHub inbox.
  *
- * `participating=true` drops everything the user is merely watching, on GitHub's
- * side, so the filtering that matters costs nothing here. An etag turns an
- * unchanged poll into a 304, which per the docs does not consume rate limit.
+ * GitHub already decides what belongs in the bell. The bot mirrors that list
+ * instead of second-guessing reasons such as subscribed or ci_activity.
  */
 export async function fetchThreads(env, etag) {
   const h = headers(env.GH_NOTIFY_TOKEN);
   if (etag) h["if-none-match"] = etag;
 
-  const res = await fetch(`${API}/notifications?participating=true&per_page=20`, { headers: h });
+  const res = await fetch(`${API}/notifications?per_page=20`, { headers: h });
   if (res.status === 304) return { threads: [], etag, unchanged: true };
   if (!res.ok) {
     throw new Error(`notifications ${res.status}: ${(await res.text()).slice(0, 160)}`);
@@ -79,8 +64,8 @@ export function isOwnEcho(comment, login) {
   return String(comment.user?.login ?? "").toLowerCase() === String(login).toLowerCase();
 }
 
-export function isWanted(thread) {
-  return WANTED.has(thread.reason);
+export function isWanted(_thread) {
+  return true;
 }
 
 /**
@@ -92,6 +77,7 @@ export function isWanted(thread) {
  */
 export async function fetchComment(env, thread) {
   const url = thread.subject?.latest_comment_url;
+  if (url === thread.subject?.url) return null;
   if (!url || !env.GH_PAT) return null;
   try {
     const res = await fetch(url, { headers: headers(env.GH_PAT) });

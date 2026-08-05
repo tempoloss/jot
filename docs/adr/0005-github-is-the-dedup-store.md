@@ -18,9 +18,9 @@ of its own (see [ADR 0002](0002-github-issues-as-the-store.md)).
 
 ## Decision
 
-Fetch unread notifications only, and mark each thread read after it has been
-delivered. GitHub's own read/unread flag is the record of what has been sent, so
-there is nothing to store here.
+Fetch the whole unread notification inbox, and mark each thread read after it
+has been delivered. GitHub's own read/unread flag is the record of what has been
+sent, so there is nothing to store here.
 
 The order is load-bearing: **deliver first, mark second.** Marking first and then
 failing to send loses the notification permanently, with GitHub asserting it was
@@ -58,6 +58,9 @@ Rejected alternatives:
   at `reason=mention` permanently once you have been tagged in it, so the second
   and third reply would both claim a tag. The comment body is checked for the
   login instead.
+- The poll mirrors GitHub's unread inbox. It does not pass `participating=true`
+  and does not drop reasons like `subscribed` or `ci_activity`, because the
+  product contract is "whatever GitHub would have shown in the bell".
 - Polling is 59 times an hour, not 60. `X-Poll-Interval` is 60 seconds and cron
   fires on the minute rather than exactly every 60 seconds, so sitting on the
   limit would cross it on jitter alone.

@@ -24,15 +24,12 @@ const comment = (over = {}) => ({
   ...over,
 });
 
-test("watch noise is dropped and participation is kept", () => {
+test("every GitHub inbox reason is wanted", () => {
   assert.equal(notify.isWanted(thread({ reason: "mention" })), true);
   assert.equal(notify.isWanted(thread({ reason: "author" })), true);
   assert.equal(notify.isWanted(thread({ reason: "review_requested" })), true);
-
-  // Watching a repo would otherwise deliver every issue anyone opens.
-  assert.equal(notify.isWanted(thread({ reason: "subscribed" })), false);
-  // Every workflow run is a stream, not a signal, during active work.
-  assert.equal(notify.isWanted(thread({ reason: "ci_activity" })), false);
+  assert.equal(notify.isWanted(thread({ reason: "subscribed" })), true);
+  assert.equal(notify.isWanted(thread({ reason: "ci_activity" })), true);
 });
 
 test("the owner's own comment is not news to the owner", () => {
@@ -46,6 +43,30 @@ test("a thread with no comment is still deliverable", () => {
   // A review request carries no comment. Treating that as an echo would silence
   // exactly the notification that most needs answering.
   assert.equal(notify.isOwnEcho(null, "tempoloss"), false);
+});
+
+test("a pull request subject is not treated as a comment", async () => {
+  const realFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls++;
+    return new Response(JSON.stringify({ user: { login: "tempoloss" } }));
+  };
+  try {
+    const pr = thread({
+      reason: "author",
+      subject: {
+        title: "faiss: exclude windows",
+        url: "https://api.github.com/repos/duckdb/community-extensions/pulls/2431",
+        latest_comment_url: "https://api.github.com/repos/duckdb/community-extensions/pulls/2431",
+        type: "PullRequest",
+      },
+    });
+    assert.equal(await notify.fetchComment({ GH_PAT: "t" }, pr), null);
+    assert.equal(calls, 0);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
 });
 
 test("the link lands on the comment when there is one", () => {
@@ -126,6 +147,21 @@ test("a comment that is only quoted text produces no body block", () => {
   const text = notify.format(thread(), comment({ body: "> nothing but a quote" }), esc, "tempoloss");
 
   assert.doesNotMatch(text, /<pre>/);
+});
+
+test("the poll reads the whole GitHub inbox", async () => {
+  const realFetch = globalThis.fetch;
+  let seenUrl = "";
+  globalThis.fetch = async (url) => {
+    seenUrl = String(url);
+    return new Response("[]", { status: 200, headers: { etag: "fresh" } });
+  };
+  try {
+    await notify.fetchThreads({ GH_NOTIFY_TOKEN: "t" }, null);
+    assert.equal(seenUrl, "https://api.github.com/notifications?per_page=20");
+  } finally {
+    globalThis.fetch = realFetch;
+  }
 });
 
 test("an unchanged poll is reported as unchanged rather than as empty news", async () => {
