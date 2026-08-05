@@ -154,7 +154,7 @@ two cannot drift.
 npm test
 ```
 
-49 tests, no network. Everything is split so the impure half is a thin shell
+51 tests, no network. Everything is split so the impure half is a thin shell
 around a pure one: `fetch` around `parse` for commands, and the GitHub call
 around `format` for notifications. The load-bearing tests are the ones that pin
 behaviour a plausible change would break: an unknown command is an error and
