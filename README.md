@@ -154,13 +154,14 @@ two cannot drift.
 npm test
 ```
 
-51 tests, no network. Everything is split so the impure half is a thin shell
-around a pure one: `fetch` around `parse` for commands, and the GitHub call
-around `format` for notifications. The load-bearing tests are the ones that pin
-behaviour a plausible change would break: an unknown command is an error and
-never a silently saved note, a stranger is greeted once however often they knock,
-a failed photo still reports that somebody knocked, and a sticky
-`reason=mention` does not claim a tag that is not in the comment body.
+56 tests, no network. Everything is split so the impure half is a thin shell
+around a pure one: `fetch` around `parse` for commands, `chunk` under `send`,
+and the GitHub call around `format` for notifications. The load-bearing tests
+are the ones that pin behaviour a plausible change would break: an unknown
+command is an error and never a silently saved note, a stranger is greeted once
+however often they knock, a failed photo still reports that somebody knocked, a
+sticky `reason=mention` does not claim a tag that is not in the comment body,
+and a note past 4096 characters is confirmed rather than answered with an error.
 
 ## Layout
 

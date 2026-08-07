@@ -16,7 +16,7 @@
 import { parse, HELP } from "./commands.js";
 import * as gh from "./github.js";
 import * as notify from "./notify.js";
-import { esc } from "./html.js";
+import { esc, chunk } from "./html.js";
 
 const PHOTO_MARK = "tg-photo";
 
@@ -296,12 +296,16 @@ export async function handle(env, cmd) {
 
     case "note": {
       const issue = await gh.create(env, cmd.title, [gh.NOTE]);
-      return `📝 <b>#${issue.number}</b> ${esc(cmd.title)}`;
+      // issue.title, not cmd.title: GitHub keeps the first 120 characters as the
+      // title and spills the rest into the body. Echoing what was typed answered
+      // a 9000-character note with `message is too long` while the issue already
+      // existed, which reads as a failure and invites retyping it.
+      return `📝 <b>#${issue.number}</b> ${esc(issue.title)}`;
     }
 
     case "task_new": {
       const issue = await gh.create(env, cmd.title, [gh.NOTE, gh.TASK]);
-      return `⚡️ <b>#${issue.number}</b> ${esc(cmd.title)}\n<i>задача</i>`;
+      return `⚡️ <b>#${issue.number}</b> ${esc(issue.title)}\n<i>задача</i>`;
     }
 
     case "promote": {
@@ -386,12 +390,18 @@ function age(iso) {
 
 export async function send(env, chatId, reply) {
   // handle() may return a photo instruction instead of text.
-  const isPhoto = typeof reply === "object" && reply.photo;
-  const method = isPhoto ? "sendPhoto" : "sendMessage";
-  const payload = isPhoto
-    ? { chat_id: chatId, photo: reply.photo, caption: reply.caption, parse_mode: "HTML" }
-    : { chat_id: chatId, text: reply, parse_mode: "HTML", disable_web_page_preview: true };
+  if (typeof reply === "object" && reply.photo) {
+    await callTelegram(env, "sendPhoto",
+      { chat_id: chatId, photo: reply.photo, caption: reply.caption, parse_mode: "HTML" });
+    return;
+  }
+  for (const part of chunk(reply)) {
+    await callTelegram(env, "sendMessage",
+      { chat_id: chatId, text: part, parse_mode: "HTML", disable_web_page_preview: true });
+  }
+}
 
+async function callTelegram(env, method, payload) {
   const res = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_TOKEN}/${method}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
